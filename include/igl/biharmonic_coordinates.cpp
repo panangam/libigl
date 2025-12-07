@@ -28,7 +28,7 @@ IGL_INLINE bool igl::biharmonic_coordinates(
   Eigen::PlainObjectBase<DerivedW> & W,
   bool useCrouzeixRaviar)
 {
-  return biharmonic_coordinates(V,T,S,2,W);
+  return biharmonic_coordinates(V,T,S,2,W,useCrouzeixRaviar);
 }
 
 template <
@@ -41,7 +41,8 @@ IGL_INLINE bool igl::biharmonic_coordinates(
   const Eigen::MatrixBase<DerivedT> & T,
   const std::vector<std::vector<SType> > & S,
   const int k,
-  Eigen::PlainObjectBase<DerivedW> & W)
+  Eigen::PlainObjectBase<DerivedW> & W,
+  bool useCrouzeixRaviar)
 {
   typedef typename DerivedV::Scalar Scalar;
   typedef typename DerivedT::Scalar Integer;

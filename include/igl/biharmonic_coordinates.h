@@ -68,7 +68,8 @@ namespace igl
     const Eigen::MatrixBase<DerivedV> & V,
     const Eigen::MatrixBase<DerivedT> & T,
     const std::vector<std::vector<SType> > & S,
-    Eigen::PlainObjectBase<DerivedW> & W);
+    Eigen::PlainObjectBase<DerivedW> & W,
+    bool useCrouzeixRaviar = true);
   /// \overload
   /// @param[in] k  power of Laplacian (experimental)
   template <

@@ -25,7 +25,8 @@ IGL_INLINE bool igl::biharmonic_coordinates(
   const Eigen::MatrixBase<DerivedV> & V,
   const Eigen::MatrixBase<DerivedT> & T,
   const std::vector<std::vector<SType> > & S,
-  Eigen::PlainObjectBase<DerivedW> & W)
+  Eigen::PlainObjectBase<DerivedW> & W,
+  bool useCrouzeixRaviar)
 {
   return biharmonic_coordinates(V,T,S,2,W);
 }
@@ -56,80 +57,83 @@ IGL_INLINE bool igl::biharmonic_coordinates(
       Eigen::Array<bool ,Eigen::Dynamic,1> I;
       on_boundary(T,I,C);
     }
-#ifdef false
-    // Version described in paper is "wrong"
-    // http://www.cs.toronto.edu/~jacobson/images/error-in-linear-subspace-design-for-real-time-shape-deformation-2017-wang-et-al.pdf
-    Eigen::SparseMatrix<Scalar> N, Z, M;
-    normal_derivative(V,T,N);
+    if (!useCrouzeixRaviar)
     {
-      std::vector<Eigen::Triplet<Scalar>> ZIJV;
-      for(int t =0;t<T.rows();t++)
+      // Version described in paper is "wrong"
+      // http://www.cs.toronto.edu/~jacobson/images/error-in-linear-subspace-design-for-real-time-shape-deformation-2017-wang-et-al.pdf
+      Eigen::SparseMatrix<Scalar> N, Z, M;
+      normal_derivative(V,T,N);
       {
-        for(int f =0;f<T.cols();f++)
+        std::vector<Eigen::Triplet<Scalar>> ZIJV;
+        for(int t =0;t<T.rows();t++)
         {
-          if(C(t,f))
+          for(int f =0;f<T.cols();f++)
           {
-            const int i = t+f*T.rows();
-            for(int c = 1;c<T.cols();c++)
+            if(C(t,f))
             {
-              ZIJV.emplace_back(T(t,(f+c)%T.cols()),i,1);
+              const int i = t+f*T.rows();
+              for(int c = 1;c<T.cols();c++)
+              {
+                ZIJV.emplace_back(T(t,(f+c)%T.cols()),i,1);
+              }
             }
           }
         }
+        Z.resize(V.rows(),N.rows());
+        Z.setFromTriplets(ZIJV.begin(),ZIJV.end());
+        N = (Z*N).eval();
       }
-      Z.resize(V.rows(),N.rows());
-      Z.setFromTriplets(ZIJV.begin(),ZIJV.end());
-      N = (Z*N).eval();
+      cotmatrix(V,T,L);
+      K = N+L;
+      massmatrix(V,T,MASSMATRIX_TYPE_DEFAULT,M);
+      // normalize
+      M /= ((Matrix<Scalar, Eigen::Dynamic, 1>)M.diagonal()).array().abs().maxCoeff();
+      Minv =
+        ((Matrix<Scalar, Eigen::Dynamic, 1>)M.diagonal().array().inverse()).asDiagonal();
     }
-    cotmatrix(V,T,L);
-    K = N+L;
-    massmatrix(V,T,MASSMATRIX_TYPE_DEFAULT,M);
-    // normalize
-    M /= ((Matrix<Scalar, Eigen::Dynamic, 1>)M.diagonal()).array().abs().maxCoeff();
-    Minv =
-      ((Matrix<Scalar, Eigen::Dynamic, 1>)M.diagonal().array().inverse()).asDiagonal();
-#else
-    Eigen::SparseMatrix<Scalar> M;
-    Eigen::Matrix<Integer, Eigen::Dynamic, Eigen::Dynamic> E;
-    Eigen::Matrix<Integer, Eigen::Dynamic, 1> EMAP;
-    crouzeix_raviart_massmatrix(V,T,M,E,EMAP);
-    crouzeix_raviart_cotmatrix(V,T,E,EMAP,L);
-    // Ad  #E by #V facet-vertex incidence matrix
-    Eigen::SparseMatrix<Scalar> Ad(E.rows(),V.rows());
+    else
     {
-      std::vector<Eigen::Triplet<Scalar>> AIJV(E.size());
-      for(int e = 0;e<E.rows();e++)
+      Eigen::SparseMatrix<Scalar> M;
+      Eigen::Matrix<Integer, Eigen::Dynamic, Eigen::Dynamic> E;
+      Eigen::Matrix<Integer, Eigen::Dynamic, 1> EMAP;
+      crouzeix_raviart_massmatrix(V,T,M,E,EMAP);
+      crouzeix_raviart_cotmatrix(V,T,E,EMAP,L);
+      // Ad  #E by #V facet-vertex incidence matrix
+      Eigen::SparseMatrix<Scalar> Ad(E.rows(),V.rows());
       {
-        for(int c = 0;c<E.cols();c++)
+        std::vector<Eigen::Triplet<Scalar>> AIJV(E.size());
+        for(int e = 0;e<E.rows();e++)
         {
-          AIJV[e + c * E.rows()] = Eigen::Triplet<Scalar>(e, E(e, c), 1);
+          for(int c = 0;c<E.cols();c++)
+          {
+            AIJV[e + c * E.rows()] = Eigen::Triplet<Scalar>(e, E(e, c), 1);
+          }
         }
+        Ad.setFromTriplets(AIJV.begin(),AIJV.end());
       }
-      Ad.setFromTriplets(AIJV.begin(),AIJV.end());
-    }
-    // Degrees
-    Eigen::Matrix<Scalar, Eigen::Dynamic, 1> De;
-    sum(Ad,2,De);
-    Eigen::DiagonalMatrix<Scalar,Eigen::Dynamic> De_diag =
-      De.array().inverse().matrix().asDiagonal();
-    K = L*(De_diag*Ad);
-    // normalize
-    M /= ((Eigen::Matrix<Scalar, Eigen::Dynamic, 1>)M.diagonal()).array().abs().maxCoeff();
-    Minv = ((Eigen::Matrix<Scalar, Eigen::Dynamic, 1>)M.diagonal().array().inverse()).asDiagonal();
-    // kill boundary edges
-    for(int f = 0;f<T.rows();f++)
-    {
-      for(int c = 0;c<T.cols();c++)
+      // Degrees
+      Eigen::Matrix<Scalar, Eigen::Dynamic, 1> De;
+      sum(Ad,2,De);
+      Eigen::DiagonalMatrix<Scalar,Eigen::Dynamic> De_diag =
+        De.array().inverse().matrix().asDiagonal();
+      K = L*(De_diag*Ad);
+      // normalize
+      M /= ((Eigen::Matrix<Scalar, Eigen::Dynamic, 1>)M.diagonal()).array().abs().maxCoeff();
+      Minv = ((Eigen::Matrix<Scalar, Eigen::Dynamic, 1>)M.diagonal().array().inverse()).asDiagonal();
+      // kill boundary edges
+      for(int f = 0;f<T.rows();f++)
       {
-        if(C(f,c))
+        for(int c = 0;c<T.cols();c++)
         {
-          const int e = EMAP(f+T.rows()*c);
-          Minv.diagonal()(e) = 0;
+          if(C(f,c))
+          {
+            const int e = EMAP(f+T.rows()*c);
+            Minv.diagonal()(e) = 0;
+          }
         }
       }
     }
 
-#endif
     switch(k)
     {
       default:

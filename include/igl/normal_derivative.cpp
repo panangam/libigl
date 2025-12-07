@@ -20,13 +20,15 @@ IGL_INLINE void igl::normal_derivative(
   const Eigen::MatrixBase<DerivedEle> & Ele,
   Eigen::SparseMatrix<Scalar>& DD)
 {
+  using Index = typename DerivedEle::Scalar;
+  using IndexMatrix = Eigen::Matrix<Index, Eigen::Dynamic, Eigen::Dynamic>;
   // Element simplex-size
   const size_t ss = Ele.cols();
   assert( ((ss==3) || (ss==4)) && "Only triangles or tets");
   // cotangents
   Eigen::Matrix<Scalar ,Eigen::Dynamic ,Eigen::Dynamic> C;
   cotmatrix_entries(V,Ele,C);
-  std::vector<Eigen::Triplet<Scalar> > IJV;
+  std::vector<Eigen::Triplet<Scalar, Index> > IJV;
   // Number of elements
   const size_t m = Ele.rows();
   // Number of vertices
@@ -38,12 +40,12 @@ IGL_INLINE void igl::normal_derivative(
       return;
     case 4:
     {
-      const Eigen::MatrixXi DDJ =
+      const Eigen::Matrix<Index, Eigen::Dynamic, Eigen::Dynamic> DDJ =
         Ele(igl::placeholders::all,{1,0,2,0,3,0,2,1,3,1,0,1,3,2,0,2,1,2,0,3,1,3,2,3});
-      Eigen::MatrixXi DDI(m,24);
+      Eigen::Matrix<Index, Eigen::Dynamic, Eigen::Dynamic> DDI(m,24);
       for(size_t f = 0;f<4;f++)
       {
-        const auto & I = (igl::LinSpaced<Eigen::VectorXi >(m,0,m-1).array()+f*m).eval();
+        const auto & I = (igl::LinSpaced<Eigen::Vector<Index, Eigen::Dynamic> >(m,0,m-1).array()+f*m).eval();
         for(size_t r = 0;r<6;r++)
         {
           DDI.col(f*6+r) = I;
@@ -60,7 +62,7 @@ IGL_INLINE void igl::normal_derivative(
       {
         for(size_t e = 0;e<m;e++)
         {
-          IJV.push_back(Eigen::Triplet<Scalar>(DDI(e,f),DDJ(e,f),DDV(e,f)));
+          IJV.push_back(Eigen::Triplet<Scalar, Index>(DDI(e,f),DDJ(e,f),DDV(e,f)));
         }
       }
       DD.resize(m*4,n);
@@ -69,11 +71,11 @@ IGL_INLINE void igl::normal_derivative(
     }
     case 3:
     {
-      const Eigen::MatrixXi DDJ = Ele(igl::placeholders::all,{2,0,1,0,0,1,2,1,1,2,0,2});
-      Eigen::MatrixXi DDI(m,12);
+      const Eigen::Matrix<Index, Eigen::Dynamic, Eigen::Dynamic> DDJ = Ele(igl::placeholders::all,{2,0,1,0,0,1,2,1,1,2,0,2});
+      Eigen::Matrix<Index, Eigen::Dynamic, Eigen::Dynamic> DDI(m,12);
       for(size_t f = 0;f<3;f++)
       {
-        const auto & I = (igl::LinSpaced<Eigen::VectorXi >(m,0,m-1).array()+f*m).eval();
+        const auto & I = (igl::LinSpaced<Eigen::Vector<Index, Eigen::Dynamic> >(m,0,m-1).array()+f*m).eval();
         for(size_t r = 0;r<4;r++)
         {
           DDI.col(f*4+r) = I;
@@ -89,7 +91,7 @@ IGL_INLINE void igl::normal_derivative(
       {
         for(size_t e = 0;e<m;e++)
         {
-          IJV.push_back(Eigen::Triplet<Scalar>(DDI(e,f),DDJ(e,f),DDV(e,f)));
+          IJV.push_back(Eigen::Triplet<Scalar, Index>(DDI(e,f),DDJ(e,f),DDV(e,f)));
         }
       }
       DD.resize(m*3,n);

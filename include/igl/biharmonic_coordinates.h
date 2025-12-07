@@ -81,7 +81,8 @@ namespace igl
     const Eigen::MatrixBase<DerivedT> & T,
     const std::vector<std::vector<SType> > & S,
     const int k,
-    Eigen::PlainObjectBase<DerivedW> & W);
+    Eigen::PlainObjectBase<DerivedW> & W,
+    bool useCrouzeixRaviar = true);
 
 };
 #  ifndef IGL_STATIC_LIBRARY
